@@ -77,6 +77,8 @@ java编译器在它编译的每一个类都至少生成一个实例化的方法�
 根类加载器–>扩展类加载器–>系统应用类加载器–>自定义类加载器
 类加载器并不需要等到某个类被“首次主动使用”时再加载它
 
+![类加载顺序](./images/Snipaste_2019-11-07_14-51-04.png)
+
 JVM规范允许类加载器在预料某个类将要被使用时就预先加载它，如果在预先加载的过程中遇到了.class文件缺失或存在错误，类加载器必须在**程序首次主动**使用该类才报告错误（LinkageError错误），如果这个类没有被程序主动使用，那么类加载器就不会报告错误。
 
 类加载器用来把类加载到java虚拟机中。从JDK1.2版本开始，类的加载过程采用父亲委托机制，这种机制能更好地保证Java平台的安全。在此委托机制中，除了java虚拟机自带的根类加载器以外，其余的类加载器都有且只有一个父加载器。当java程序请求加载器loader1加载Sample类时，loader1首先委托自己的父加载器去加载Sample类，若父加载器能加载，则有父加载器完成加载任务，否则才由加载器loader1本身加载Sample类。
@@ -148,3 +150,302 @@ interface MyChild extends Student5 {     //接口属性默认是 public static f
 在父亲委托机制中，各个加载器按照父子关系形成了树形结构，除了根加载器之外，其余的类加载器都有一个父加载器
 
 - 若有一个类能够成功加载Test类，那么这个类加载器被称为**定义类加载器**，所有能成功返回Class对象引用的类加载器（包括定义类加载器）称为**初始类加载器**。
+
+![类加载器的(双亲委派机制)父亲委托机制](./images/loadmethod.png)
+
+### 类加载器测试7
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/7
+ */
+public class ClassLoadTest7 {
+    public static void main(String[] args) {
+        System.out.println(String.class.getClassLoader());//null 由于String是由根加载器加载，在rt.jar包下
+        System.out.println(C.class.getClassLoader());//sun.misc.Launcher$AppClassLoader@73d16e93
+    }
+}
+
+class C {
+
+}
+```
+
+**测试9**：
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/7
+ */
+public class ClassLoadTest9 {
+
+    static {
+        System.out.println("ClassLoadTest9");
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Child1.a);
+    }
+}
+
+class Parent1 {
+    static int a = 9;
+
+    static {
+        System.out.println("Parent1");
+    }
+}
+
+class Child1 extends Parent1 {
+    static int b = 0;
+
+    static {
+        System.out.println("Child1");
+    }
+}
+
+//最后输出顺序
+//ClassLoadTest9
+// Parent1
+//9
+```
+
+**测试10**:
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/7
+ */
+public class ClassLoadTest10 {
+
+    static {
+        System.out.println("ClassLoadTest10");
+    }
+
+    public static void main(String[] args) {
+        Parent2 parent2;
+        parent2 = new Parent2();
+        System.out.println(Parent2.a);
+        System.out.println(Child2.b);
+        /*执行结果：由于父类已经初始化过了所以Parent2只输出一次
+         * ClassLoadTest10
+         * Parent2
+         * 2
+         * Child2
+         * 3
+         */
+    }
+}
+
+class Parent2 {
+    static int a = 2;
+
+    static {
+        System.out.println("Parent2");
+    }
+}
+
+class Child2 extends Parent2 {
+    static int b = 3;
+
+    static {
+        System.out.println("Child2");
+    }
+}
+```
+
+**测试12**：
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/7
+ * 调用类的loadClass并不是主使实用类，不会导致类的初始化
+ */
+public class ClassLoadTest12 {
+    public static void main(String[] args) throws ClassNotFoundException {
+
+        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+        Class<?> loadClass = classLoader.loadClass("com.poplar.classload.G");
+        System.out.println("-------------------------------");
+        Class<?> clazz = Class.forName("com.poplar.classload.G");//反射会导致一个类的初始化
+        System.out.println(clazz);
+        //输出结果：
+        //G
+        //class com.poplar.classload.G
+    }
+}
+
+class G { 1
+    static {
+        System.out.println("G");
+    }
+}
+```
+
+**测试16：**
+
+```java
+package com.poplar.classload;
+
+import java.io.*;
+
+/**
+ * Created By poplar on 2019/11/7
+ * 自定义类加载器
+ */
+public class CustomClassLoader extends ClassLoader {
+
+    private String classLoaderName;
+    private static final String filePost = ".class";
+
+    public CustomClassLoader(ClassLoader parent, String classLoaderName) {
+        super(parent);//显示指定该类的父类加载器
+        this.classLoaderName = classLoaderName;
+    }
+
+    public CustomClassLoader(String classLoaderName) {
+        super();//将系统类加载器当作该类的父类加载器
+        this.classLoaderName = classLoaderName;
+    }
+
+    @Override
+    public Class findClass(String name) {
+    	System.out.println("findClass,输出这句话说明我们自己的类加载器加载了指定的类");
+        byte[] b = loadClassData(name);
+        return defineClass(name, b, 0, b.length);
+    }
+
+    private byte[] loadClassData(String name) {
+        InputStream is = null;
+        byte[] data = null;
+        ByteArrayOutputStream byteArrayOutputStream = null;
+
+        try {
+            name = name.replace(".", File.separator);//File.separator根据操作系统而变化
+            is = new FileInputStream(new File(name + filePost));
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            int len = 0;
+            while (-1 != (len = is.read())) {
+                byteArrayOutputStream.write(len);
+            }
+            data = byteArrayOutputStream.toByteArray();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                is.close();
+                byteArrayOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return data;
+        }
+    }
+
+    public static void test(ClassLoader classLoader) throws Exception {
+        Class<?> clazz = classLoader.loadClass("com.poplar.classload.ClassLoadTest");
+        Object instance = clazz.newInstance();
+        System.out.println(instance);
+    }
+
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader classLoader = new CustomClassLoader("load1");
+        test(classLoader);
+    }
+}
+//这个列子中最后的类加载器是系统类加载器，而非我们自己的类加载器，是因为我们要加载的类刚好在系统类加载器的加载范围
+```
+
+测试16改进：
+
+```java
+package com.poplar.classload;
+
+import java.io.*;
+
+/**
+ * Created By poplar on 2019/11/7
+ * 自定义类加载器
+ */
+public class CustomClassLoader2 extends ClassLoader {
+
+    private String classLoaderName;
+
+    private String path;
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    private static final String filePost = ".class";
+
+    public CustomClassLoader2(ClassLoader parent, String classLoaderName) {
+        super(parent);//显示指定该类的父类加载器
+        this.classLoaderName = classLoaderName;
+    }
+
+    public CustomClassLoader2(String classLoaderName) {
+        super();//将系统类加载器当作该类的父类加载器
+        this.classLoaderName = classLoaderName;
+    }
+
+    @Override
+    public Class findClass(String name) {
+        System.out.println("findClass,输出这句话说明我们自己的类加载器加载了指定的类");
+        byte[] b = loadClassData(name);
+        return defineClass(name, b, 0, b.length);
+    }
+
+    private byte[] loadClassData(String name) {
+        InputStream is = null;
+        byte[] data = null;
+        ByteArrayOutputStream byteArrayOutputStream = null;
+
+        try {
+            name = name.replace(".", File.separator);//File.separator根据操作系统而变化
+            is = new FileInputStream(new File(path + name + filePost));
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            int len = 0;
+            while (-1 != (len = is.read())) {
+                byteArrayOutputStream.write(len);
+            }
+            data = byteArrayOutputStream.toByteArray();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                is.close();
+                byteArrayOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return data;
+        }
+    }
+
+
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader2 Loader2 = new CustomClassLoader2("load2");
+        Loader2.setPath("C:\\Users\\poplar\\Desktop\\");
+        Class<?> clazz = Loader2.loadClass("com.poplar.classload.ClassLoadTest");
+        Object instance = clazz.newInstance();
+        System.out.println(instance.getClass().getClassLoader());
+        //运行结果：（此处测试建议把源码文件先删掉，不然idea会重新生成classes,还是会导致系统类加载器加载）
+        //findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        //com.poplar.classload.CustomClassLoader2@15db9742
+
+    }
+}
+
+```
+
