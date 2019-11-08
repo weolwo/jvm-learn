@@ -65,14 +65,32 @@ public class CustomClassLoader2 extends ClassLoader {
 
 
     public static void main(String[] args) throws Exception {
+        //类的卸载
         CustomClassLoader2 Loader2 = new CustomClassLoader2("load2");
-        Loader2.setPath("C:\\Users\\poplar\\Desktop\\");
-        Class<?> clazz = Loader2.loadClass("com.poplar.classload.ClassLoadTest");
+        test1(Loader2);
+        Loader2 = null;
+        System.gc();
+        Thread.sleep(10000); //jvisualvm 查看当前java进程 -XX:+TraceClassUnloading这个用于追踪类卸载的信息
+        CustomClassLoader2 Loader3 = new CustomClassLoader2("load2");
+        test1(Loader3);
+        /*
+        执行结果：
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        com.poplar.classload.CustomClassLoader2@15db9742
+        2018699554
+        -------------------------------------
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        com.poplar.classload.CustomClassLoader2@4e25154f
+        1550089733*/
+    }
+
+    private static void test1(CustomClassLoader2 loader2) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        loader2.setPath("C:\\Users\\poplar\\Desktop\\");
+        Class<?> clazz = loader2.loadClass("com.poplar.classload.ClassLoadTest");
         Object instance = clazz.newInstance();
         System.out.println(instance.getClass().getClassLoader());
+        System.out.println(instance.hashCode());
+        System.out.println("-------------------------------------");
         //运行结果：（此处测试建议把源码文件先删掉，不然idea会重新生成classes,还是会导致系统类加载器加载）
-        //findClass,输出这句话说明我们自己的类加载器加载了指定的类
-        //com.poplar.classload.CustomClassLoader2@15db9742
-
     }
 }

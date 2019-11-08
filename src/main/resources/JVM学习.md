@@ -173,7 +173,7 @@ class C {
 }
 ```
 
-**测试9**：
+### 测试9：
 
 ```java
 package com.poplar.classload;
@@ -214,7 +214,7 @@ class Child1 extends Parent1 {
 //9
 ```
 
-**测试10**:
+### 测试10:
 
 ```java
 package com.poplar.classload;
@@ -260,7 +260,7 @@ class Child2 extends Parent2 {
 }
 ```
 
-**测试12**：
+### 测试12：
 
 ```java
 package com.poplar.classload;
@@ -290,7 +290,7 @@ class G { 1
 }
 ```
 
-**测试16：**
+### 测试16:
 
 ```java
 package com.poplar.classload;
@@ -365,7 +365,7 @@ public class CustomClassLoader extends ClassLoader {
 //这个列子中最后的类加载器是系统类加载器，而非我们自己的类加载器，是因为我们要加载的类刚好在系统类加载器的加载范围
 ```
 
-测试16改进：
+### 测试16改进：
 
 ```java
 package com.poplar.classload;
@@ -435,17 +435,371 @@ public class CustomClassLoader2 extends ClassLoader {
 
 
     public static void main(String[] args) throws Exception {
+        
         CustomClassLoader2 Loader2 = new CustomClassLoader2("load2");
-        Loader2.setPath("C:\\Users\\poplar\\Desktop\\");
-        Class<?> clazz = Loader2.loadClass("com.poplar.classload.ClassLoadTest");
+  		test1(loader2) 
+        CustomClassLoader2 Loader3 = new CustomClassLoader2("load3");
+  		test1(loader3)    
+     /*
+        执行结果： 
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        com.poplar.classload.CustomClassLoader2@15db9742
+        2018699554
+        -------------------------------------
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        com.poplar.classload.CustomClassLoader2@4e25154f
+        1550089733*/
+     
+    }
+  private static void test1(CustomClassLoader2 loader2) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        loader2.setPath("C:\\Users\\poplar\\Desktop\\");
+        Class<?> clazz = loader2.loadClass("com.poplar.classload.ClassLoadTest");
         Object instance = clazz.newInstance();
         System.out.println(instance.getClass().getClassLoader());
+        System.out.println(instance.hashCode());
+        System.out.println("-------------------------------------");
         //运行结果：（此处测试建议把源码文件先删掉，不然idea会重新生成classes,还是会导致系统类加载器加载）
-        //findClass,输出这句话说明我们自己的类加载器加载了指定的类
-        //com.poplar.classload.CustomClassLoader2@15db9742
+}
 
+```
+
+### 命名空间(上面的列子中加载同一个文件)
+
+- 每个类加载器都有自己的命名空间，**命名空间由该加载器及所有父加载器所加载的类构成**；
+- 在同一个命名空间中，不会出现类的完整名字（包括类的包名）相同的两个类；
+- 在不同的命名空间中，有可能会出现类的完整名字（包括类的包名）相同的两个类；
+- 同一命名空间内的类是互相可见的，**非同一命名空间内的类是不可见的**；
+- 子加载器可以见到父加载器加载的类，**父加载器也不能见到子加载器加载的类**。
+
+### 类的卸载
+
+- 当一个类被加载、连接和初始化之后，它的生命周期就开始了。当此类的Class对象不再被引用，即不可触及时，Class对象就会结束生命周期，类在方法区内的数据也会被卸载。
+- 一个类何时结束生命周期，取决于代表它的Class对象何时结束生命周期。
+- 由Java虚拟机自带的类加载器所加载的类，在虚拟机的生命周期中，始终不会被卸载。Java虚拟机本身会始终引用这些加载器，而这些类加载器则会始终引用他们所加载的类的Class对象，因此这些Class对象是可触及的。
+- 由用户自定义的类加载器所加载的类是可以被卸载的。（**jvisualvm 查看当前java进程 -XX:+TraceClassUnloading这个用于追**）
+
+```java
+  public static void main(String[] args) throws Exception {
+        CustomClassLoader2 Loader2 = new CustomClassLoader2("load2");
+        test1(Loader2);
+        Loader2 = null;
+        System.gc();
+        Thread.sleep(10000); //jvisualvm 查看当前java进程 -XX:+TraceClassUnloading这个用于追踪类卸载的信息
+        CustomClassLoader2 Loader3 = new CustomClassLoader2("load2");
+        test1(Loader3);
+        /*
+        执行结果：
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        com.poplar.classload.CustomClassLoader2@15db9742
+        2018699554
+        -------------------------------------
+        [Unloading class com.poplar.classload.ClassLoadTest 0x0000000100060828]
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        com.poplar.classload.CustomClassLoader2@4e25154f
+        1550089733*/
+    }
+```
+
+### 测试17：
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class MyCat {
+    public MyCat() {
+        System.out.println("MyCat by load " + MyCat.class.getClassLoader());
+    }
+}
+
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class Simple {
+    public Simple() {
+        System.out.println("Simple by Load " + Simple.class.getClassLoader());
+        new MyCat();
+    }
+}
+
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class ClassLoadTest17 {
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader2 loader = new CustomClassLoader2("loader");
+        Class<?> clazz = loader.loadClass("com.poplar.classload.Simple");
+        System.out.println(clazz.hashCode());
+        //如果注释掉该行，就并不会实例化MySample对象，不会加载MyCat（可能预先加载）
+        Object instance = clazz.newInstance();//实列化Simple和MyCat
+    }
+}
+```
+
+**测试17-1**:
+
+```java
+public class ClassLoadTest17_1 {
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader2 loader = new CustomClassLoader2("loader");
+        loader.setPath("C:\\Users\\poplar\\Desktop\\");
+        Class<?> clazz = loader.loadClass("com.poplar.classload.Simple");
+        System.out.println(clazz.hashCode());
+        //如果注释掉该行，就并不会实例化MySample对象，不会加载MyCat（可能预先加载）
+        Object instance = clazz.newInstance();//实列化Simple和MyCat
+        //MyCat是由加载MySample的加载器去加载的：
+        //如果只删除classpath下的MyCat，则会报错，NoClassDefFoundError；
+        //如果只删除classpath下的MySample，则由自定义加载器加载桌面上的MySample，由系统应用加载器加载MyCat。
+    }
+}
+```
+
+
+
+### 测试17_2
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class ClassLoadTest17_2 {
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader2 loader = new CustomClassLoader2("loader");
+        loader.setPath("C:\\Users\\poplar\\Desktop\\");
+        Class<?> clazz = loader.loadClass("com.poplar.classload.Simple2");
+        System.out.println(clazz.hashCode());
+        //如果注释掉该行，就并不会实例化MySample对象，不会加载MyCat（可能预先加载）
+        Object instance = clazz.newInstance();//实列化Simple和MyCat
+        //修改MyCat2后，仍然删除classpath下的Simple2，留下MyCat2，程序报错
+        //因为命名空间，父加载器找不到子加载器所加载的类，因此MyCat2找不到
+    }
+}
+
+class MyCat2 {
+    public MyCat2() {
+        System.out.println("MyCat by load " + MyCat.class.getClassLoader());
+        System.out.println(Simple.class);
+    }
+}
+
+class Simple2 {
+    public Simple2() {
+        System.out.println("Simple by Load " + Simple.class.getClassLoader());
+        new MyCat();
+        System.out.println(MyCat.class);
+    }
+}
+```
+
+1. **子加载器所加载的类能够访问父加载器所加载的类；**
+2. **而父加载器所加载的类无法访问子加载器所加载的类**。
+
+### 测试18:
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class ClassLoadTest18 {
+    public static void main(String[] args) {
+        System.out.println(System.getProperty("sun.boot.class.path"));//根加载器路径
+        System.out.println(System.getProperty("java.ext.dirs"));//扩展类加载器路径
+        System.out.println(System.getProperty("java.class.path"));//应用类加载器路径
     }
 }
 
 ```
 
+### 测试19:
+
+```java
+/**
+ * Created By poplar on 2019/11/8
+ * 各加载器的路径是可以修改的，修改后会导致运行失败，ClassNotFoundExeception
+ */
+public class ClassLoadTest19 {
+    public static void main(String[] args) {
+        //该类默认有扩展类加载器加载的,但是如果我们把该类默认的加载路劲修改后，就会报错
+        AESKeyGenerator aesKeyGenerator = new AESKeyGenerator();
+        System.out.println(aesKeyGenerator.getClass().getClassLoader()); //ExtClassLoader@232204a1
+    }
+}
+
+```
+
+### 测试20
+
+```java
+package com.poplar.classload;
+
+import java.lang.reflect.Method;
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class ClassLoadTest20 {
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader2 loader1 = new CustomClassLoader2("load1");
+        CustomClassLoader2 loader2 = new CustomClassLoader2("load2");
+        Class<?> clazz1 = loader1.loadClass("com.poplar.classload.Person");
+        Class<?> clazz2 = loader2.loadClass("com.poplar.classload.Person");
+
+        //clazz1和clazz均由应用类加载器加载的，第二次不会重新加载，结果为true
+        System.out.println(clazz1 == clazz2);
+
+        Object object1 = clazz1.newInstance();
+        Object object2 = clazz2.newInstance();
+
+        Method method = clazz1.getMethod("setPerson", Object.class);
+        method.invoke(object1, object2);
+    }
+}
+
+class Person {
+
+    private Person person;
+
+    public void setPerson(Object object) {
+        this.person = (Person) object;
+    }
+}
+```
+
+ ### 测试21：
+
+```java
+package com.poplar.classload;
+
+import java.lang.reflect.Method;
+
+/**
+ * Created By poplar on 2019/11/8
+ * 1.每个类加载器都有自己的命名空间，命名空间由该加载器及所有父加载器所加载的类构成；
+ * 2.在同一个命名空间中，不会出现类的完整名字（包括类的包名）相同的两个类；
+ * 3.在不同的命名空间中，有可能会出现类的完整名字（包括类的包名）相同的两个类；
+ * 4.同一命名空间内的类是互相可见的，非同一命名空间内的类是不可见的；
+ * 5.子加载器可以见到父加载器加载的类，父加载器也不能见到子加载器加载的类。
+ */
+public class ClassLoadTest21 {
+
+    public static void main(String[] args) throws Exception {
+        CustomClassLoader2 loader1 = new CustomClassLoader2("load1");
+        loader1.setPath("C:\\Users\\poplar\\Desktop\\");
+        CustomClassLoader2 loader2 = new CustomClassLoader2("load2");
+        loader2.setPath("C:\\Users\\poplar\\Desktop\\");
+        Class<?> clazz1 = loader1.loadClass("com.poplar.classload.MyPerson");
+        Class<?> clazz2 = loader2.loadClass("com.poplar.classload.MyPerson");
+        //由于clazz1和clazz2分别有不同的类加载器所加载，所以他们处于不同的名称空间里
+        System.out.println(clazz1 == clazz2);//false
+
+        Object object1 = clazz1.newInstance();
+        Object object2 = clazz2.newInstance();
+
+        Method method = clazz1.getMethod("setMyPerson", Object.class);
+        //此处报错，loader1和loader2所处不用的命名空间
+        method.invoke(object1, object2);
+       /* 
+       	 
+       	findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        findClass,输出这句话说明我们自己的类加载器加载了指定的类
+        false
+        Exception in thread "main" java.lang.reflect.InvocationTargetException
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at com.poplar.classload.ClassLoadTest21.main(ClassLoadTest21.java:25)
+        Caused by: java.lang.ClassCastException: com.poplar.classload.MyPerson cannot be cast to com.poplar.classload.MyPerson*/
+    }
+}
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class MyPerson {
+
+    private MyPerson person;
+
+    public void setMyPerson(Object object) {
+        this.person = (MyPerson) object;
+    }
+}
+
+```
+
+- 类加载器双亲委托模型的好处：
+  （1）可以确保Java和核心库的安全：所有的Java应用都会引用java.lang中的类，也就是说在运行期java.lang中的类会被加载到虚拟机中，如果这个加载过程如果是由自己的类加载器所加载，那么很可能就会在JVM中存在多个版本的java.lang中的类，而且这些类是相互不可见的（命名空间的作用）。借助于双亲委托机制，Java核心类库中的类的加载工作都是由启动根加载器去加载，从而确保了Java应用所使用的的都是同一个版本的Java核心类库，他们之间是相互兼容的；
+  （2）确保Java核心类库中的类不会被自定义的类所替代；
+  （3）不同的类加载器可以为相同名称的类（binary name）创建额外的命名空间。相同名称的类可以并存在Java虚拟机中，只需要用不同的类加载器去加载即可。相当于在Java虚拟机内部建立了一个又一个相互隔离的Java类空间。
+- 父亲委托机制的优点是能够提高软件系统的安全性。因此在此机制下，用户自定义的类加载器不可能加载应该由父类加载器加载的可靠类，从而防止不可靠甚至恶意的代码代替由父类加载器加载的可靠代码。例如，java.lang.Object类是由跟类加载器加载，其他任何用哪个户自定义的类加载器都不可能加载含有恶意代码的java.lang.Object类。
+
+### 测试22:
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/8
+ */
+public class ClassLoadTest22 {
+
+    static {
+        System.out.println("ClassLoadTest22 invoked");
+    }
+
+    //扩展类加载器只加载jar包，需要把class文件打成jar
+    //此列子中将扩展类加载的位置改成了当前的classes目录
+    public static void main(String[] args) {
+        System.out.println(ClassLoadTest22.class.getClassLoader());
+        System.out.println(ClassLoadTest2.class.getClassLoader());
+    }
+}
+
+```
+
+### 测试23：
+
+```java
+package com.poplar.classload;
+
+import sun.misc.Launcher;
+
+/**
+ * Created By poplar on 2019/11/8
+ * 在运行期，一个Java类是由该类的完全限定名（binary name）和用于加载该类的定义类加载器所共同决定的。
+ * 如果同样名字（完全相同限定名）是由两个不同的加载器所加载，那么这些类就是不同的，即便.class文件字节码相同，并且从相同的位置加载亦如此。
+ * 在oracle的hotspot，系统属性sun.boot.class.path如果修改错了，则运行会出错：
+ * Error occurred during initialization of VM
+ * java/lang/NoClassDeFoundError: java/lang/Object
+ */
+public class ClassLoadTest23 {
+    public static void main(String[] args) {
+        System.out.println(System.getProperty("sun.boot.class.path"));//根加载器路径
+        System.out.println(System.getProperty("java.ext.dirs"));//扩展类加载器路径
+        System.out.println(System.getProperty("java.class.path"));//应用类加载器路径
+
+        System.out.println(ClassLoader.class.getClassLoader());
+        //此处由于系统和扩展类加载器都是Launcher其内部静态类，但又都是非public的，
+        //所以不能直接获取他们的类加载器，方法就是通过获取他们的外部类加载器是谁？从而确当他们的类加载器。
+        System.out.println(Launcher.class.getClassLoader());
+
+        //下面的系统属性指定系统类加载器，默认是AppClassLoader
+        System.out.println(System.getProperty("java.system.class.loader"));
+    }
+}
+
+```
+
+- 类加载器本身也是类加载器，类加载器又是谁加载的呢？？（先有鸡还是现有蛋）
+  类加载器是由启动类加载器去加载的，启动类加载器是C++写的，内嵌在JVM中。
+- 内嵌于JVM中的启动类加载器会加载java.lang.ClassLoader以及其他的Java平台类。当JVM启动时，一块特殊的机器码会运行，它会加载扩展类加载器以及系统类加载器，这块特殊的机器码叫做启动类加载器。
+- 启动类加载器并不是java类，其他的加载器都是java类。
+- 启动类加载器是特定于平台的机器指令，它负责开启整个加载过程。
