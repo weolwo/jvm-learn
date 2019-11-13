@@ -20,6 +20,7 @@ public class ClassLoadTest23 {
         //此处由于系统和扩展类加载器都是Launcher其内部静态类，但又都是非public的，
         // 所以不能直接获取他们的类加载器，方法就是通过获取他们的外部类加载器是谁？从而确当他们的类加载器。
         System.out.println(Launcher.class.getClassLoader());
+        System.out.println(Launcher.getLauncher());
 
         //下面的系统属性指定系统类加载器，默认是AppClassLoader
         System.out.println(System.getProperty("java.system.class.loader"));

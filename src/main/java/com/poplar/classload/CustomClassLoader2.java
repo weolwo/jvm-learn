@@ -28,6 +28,10 @@ public class CustomClassLoader2 extends ClassLoader {
         this.classLoaderName = classLoaderName;
     }
 
+    public CustomClassLoader2(ClassLoader parent) {
+        super(parent);//显示指定该类的父类加载器
+    }
+
     @Override
     public Class findClass(String name) {
         System.out.println("findClass,输出这句话说明我们自己的类加载器加载了指定的类");

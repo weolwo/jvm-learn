@@ -1,4 +1,4 @@
-# JVM学习
+# JVM类加载器学习
 
 ### 在以下几种情况下：
 
@@ -803,3 +803,213 @@ public class ClassLoadTest23 {
 - 内嵌于JVM中的启动类加载器会加载java.lang.ClassLoader以及其他的Java平台类。当JVM启动时，一块特殊的机器码会运行，它会加载扩展类加载器以及系统类加载器，这块特殊的机器码叫做启动类加载器。
 - 启动类加载器并不是java类，其他的加载器都是java类。
 - 启动类加载器是特定于平台的机器指令，它负责开启整个加载过程。
+
+### 测试24：
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/9
+ */
+public class ClassLoadTest24 {
+
+    /**
+     * 当前类加载器(Current ClassLoader)
+     * 每个类都会尝试使用自己的类加载器去加载依赖的类。
+     * <p>
+     * 线程上下文类加载器(Context ClassLoader)
+     * 线程上下文加载器 @ jdk1.2
+     * 线程类中的 getContextClassLoader() 与 setContextClassLoader(ClassLoader c)
+     * 如果没有通过setContextClassLoader()方法设置，线程将继承父线程的上下文类加载器，
+     * java应用运行时的初始线程的上下文类加载器是系统类加载器。该线程中运行的代码可以通过该类加载器加载类和资源。
+     * <p>
+     * 线程上下文类加载器的作用：
+     * SPI：Service Provide Interface
+     * 父ClassLoader可以使用当前线程Thread.currentThread().getContextClassLoader()所制定的ClassLoader加载的类，
+     * 这就改变了父加载器加载的类无法使用子加载器或是其他没有父子关系的ClassLoader加载的类的情况，即改变了双亲委托模型。
+     * <p>
+     * 在双亲委托模型下，类加载是由下至上的，即下层的类加载器会委托父加载器进行加载。但是对于SPI来说，
+     * 有些接口是Java核心库所提供的的（如JDBC），Java核心库是由启动类记载器去加载的，而这些接口的实现却来自不同的jar包（厂商提供），
+     * Java的启动类加载器是不会加载其他来源的jar包，这样传统的双亲委托模型就无法满足SPI的要求。通过给当前线程设置上下文类加载器，
+     * 就可以由设置的上下文类加载器来实现对于接口实现类的加载。
+     */
+    public static void main(String[] args) {
+        System.out.println(Thread.currentThread().getContextClassLoader());
+        System.out.println(Thread.class.getClassLoader());
+    }
+}
+
+```
+
+### 线程上下文类加载器
+
+- **当前类加载器(Current ClassLoader)**
+  每个类都会尝试使用自己的类加载器去加载依赖的类。
+
+
+- **线程上下文类加载器(Context ClassLoader)**
+  线程上下文加载器 @ jdk1.2
+  线程类中的` getContextClassLoader() `与 `setContextClassLoader(ClassLoader c)`
+  如果没有通过`setContextClassLoader()`方法设置，线程将继承父线程的上下文类加载器，
+  java应用运行时的初始线程的上下文类加载器是系统类加载器。该线程中运行的代码可以通过该类加载器加载类和资源。
+
+- **线程上下文类加载器的作用：**
+  **SPI**：`Service Provide Interface`
+  父`ClassLoader`可以使用当前线程`Thread.currentThread().getContextClassLoader()`所制定的`ClassLoader`加载的类，
+  这就改变了父加载器加载的类无法使用子加载器或是其他没有父子关系的`ClassLoader`加载的类的情况，即改变了双亲委托模型。
+
+- **在双亲委托模型下**，类加载是由下至上的，即下层的类加载器会委托父加载器进行加载。但是对于SPI来说，
+  有些接口是Java核心库所提供的的（如JDBC），Java核心库（如Connection接口）是由启动类加载器去加载的，而这些接口的实现却来自不同的jar包（**默认会被添加到classes下，这样就会导致父加载器无法访问子类加载器所加载的类**）（厂商提供），
+  Java的启动类加载器是不会加载其他来源的jar包，这样传统的双亲委托模型就无法满足SPI的要求。通过给当前线程设置上下文类加载器，
+  就可以由设置的上下文类加载器来实现对于接口实现类的加载。
+
+### 测试25:
+
+```java
+package com.poplar.classload;
+
+/**
+ * Created By poplar on 2019/11/9
+ */
+public class ClassLoadTest25 implements Runnable {
+
+    private Thread thread;
+
+    public ClassLoadTest25() {
+        thread = new Thread(this);
+        thread.start();
+    }
+
+    @Override
+    public void run() {
+        ClassLoader classLoader = thread.getContextClassLoader();
+        thread.setContextClassLoader(classLoader);
+        System.out.println("Class: " + classLoader.getClass()); //Class: class sun.misc.Launcher$AppClassLoader
+        System.out.println("Parent " + classLoader.getParent()); // Parent sun.misc.Launcher$ExtClassLoader@5b74b597
+    }
+
+    public static void main(String[] args) {
+        new ClassLoadTest25();
+    }
+}
+//源码：
+   /* public Launcher() {
+        Launcher.ExtClassLoader var1;
+        try {
+            var1 = Launcher.ExtClassLoader.getExtClassLoader();
+        } catch (IOException var10) {
+            throw new InternalError("Could not create extension class loader", var10);
+        }
+
+        try {
+            //获取到系统类加载器
+            this.loader = Launcher.AppClassLoader.getAppClassLoader(var1);
+        } catch (IOException var9) {
+            throw new InternalError("Could not create application class loader", var9);
+        }
+        //把系统类加载器设置到当前线程的上下文类加载器中
+        Thread.currentThread().setContextClassLoader(this.loader);
+    }*/
+```
+
+### 测试26
+
+```java
+package com.poplar.classload;
+
+import java.sql.Driver;
+import java.util.Iterator;
+import java.util.ServiceLoader;
+
+/**
+ * Created By poplar on 2019/11/9
+ * <p>
+ * 线程上下文类加载器的一般使用模式：（获取-使用-还原）
+ * 伪代码：
+ * ClassLoader classLoader=Thread.currentThread().getContextLoader();
+ * try{
+ * Thread.currentThread().setContextLoader(targetTccl);
+ * myMethod();
+ * }finally{
+ * Thread.currentThread().setContextLoader(classLoader);
+ * }
+ * 在myMethod中调用Thread.currentThread().getContextLoader()做某些事情
+ * ContextClassLoader的目的就是为了破坏类加载委托机制
+ * <p>
+ * 在SPI接口的代码中，使用线程上下文类加载器就可以成功的加载到SPI的实现类。
+ * <p>
+ * 当高层提供了统一的接口让底层去实现，同时又要在高层加载（或实例化）底层的类时，
+ * 就必须通过上下文类加载器来帮助高层的ClassLoader找到并加载该类。
+ */
+public class ClassLoadTest26 {
+    public static void main(String[] args) {
+
+        //一旦加入下面此行，将使用ExtClassLoader去加载Driver.class， ExtClassLoader不会去加载classpath，因此无法找到MySql的相关驱动。
+        //Thread.getCurrentThread().setContextClassLoader(MyTest26.class.getClassLoader().parent());
+
+        //ServiceLoader服务提供者，加载实现的服务
+        ServiceLoader<Driver> loader = ServiceLoader.load(Driver.class);
+        Iterator<Driver> iterator = loader.iterator();
+        while (iterator.hasNext()) {
+            Driver driver = iterator.next();
+            System.out.println("driver:" + driver.getClass() + ",loader" + driver.getClass().getClassLoader());
+        }
+        System.out.println("当前上下文加载器" + Thread.currentThread().getContextClassLoader());
+        System.out.println("ServiceLoader的加载器" + ServiceLoader.class.getClassLoader());
+    }
+}
+
+
+```
+
+### 测试27
+
+```java
+package com.poplar.classload;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+
+/**
+ * Created By poplar on 2019/11/9
+ */
+public class ClassLoadTest27 {
+    //源码：DriverManager.getConnection(){}方法中的：
+    /* private static boolean isDriverAllowed(Driver driver, ClassLoader classLoader) {
+            boolean result = false;
+            if(driver != null) {
+                Class<?> aClass = null;
+                try {
+                    //到这儿时其实已经加载过了，再次加载主要是名称空间的问题，确保是在同一名称空间下
+                    aClass =  Class.forName(driver.getClass().getName(), true, classLoader);
+                } catch (Exception ex) {
+                    result = false;
+                }
+                result = ( aClass == driver.getClass() ) ? true : false;
+            }
+
+            return result;
+        }*/
+    public static void main(String[] args) throws Exception {
+        Class<?> clazz = Class.forName("com.mysql.jdbc.Driver");
+        Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/user", "root", "123456");
+    }
+}
+
+```
+
+### jar hell问题以及解决办法
+
+```
+/* 
+ 当一个类或者一个资源文件存在多个jar中，就会存在jar hell问题。
+ 可通过以下代码解决问题：*/
+ ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+ String resource = "java/lang/String.class";
+ Enumeration<URL> urls = classLoader.getResources(resource);
+ while (urls.hasMoreElements()) {
+     URL element = urls.nextElement();
+     System.out.println(element);
+ }
+```
