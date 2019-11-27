@@ -185,7 +185,21 @@ jcmd (从JDK 1. 7开始增加的命令)
 
 - 在大量使用反射、动态代理、CGLib等字节码框架、动态生成JSP以及OSGi这类频繁自定义Classloader的场景都需要JVM具备类卸载的支持以保证方法区不会溢出
 
-### JVM常见GC算法
+### 垃圾判断与GC算法
+
+- 垃圾判断的算法
+  - 引用计数算法(Reference Counting)
+  - 根搜索算法( GC RootsTracing )
+  - 在实际的生产语言中(Java、 C#等)都是使用根搜索算法判定对象是否存活
+  - 算法基本思路就是通过一一系列的称为GCRoots"的点作为起始进行向下搜索，当一个对象到GC Roots没有任何引用链(Reference Chain)相连，则证明此对象是不可用的
+
+- 在Java语言中，可作为GC Roots的对象包括下面几种： 
+  - 虚拟机栈（栈帧中的本地变量表）中引用的对象。 
+  - 方法区中类静态属性引用的对象。 
+  - 方法区中常量引用的对象。 
+  - 本地方法栈中JNI（即一般说的Native方法）引用的对象
+
+![根搜索算法(Root Tracing)](./images/gcroot.png)
 
 - 标记-清除算法(Mark Sweep)
 - 标记-整理算法(Mark-Compact)
@@ -258,3 +272,97 @@ jcmd (从JDK 1. 7开始增加的命令)
 - 年轻代分三个区。一个Eden区，两个Survivor区(可以通过参数设置Survivor个数)。对象在Eden区中生成。当Eden区满时，还存活的对象将被复制到一个Survivor区，当这个Survivor区满时，此区的存活对象将被复制到另外一个Survivor区，当第二个Survivor区也满了的时候，从第一个Survivor区复制过来的并且此时还存活的对象，将被复制到老年代。2个Survivor是完全对称，轮流替换。
 - Eden和2个Survivor的缺省比例是8:1:1，也就是10%的空间会被
   浪费。可以根据GClog的信息调整大小的比例
+
+- 老年代(Old Generation)
+  - 存放了经过一次或多次GC还存活的对象
+  - 一般采用Mark-Sweep或者Mark-Compact算法进行GC 
+  - 有多种垃圾收集器可以选择。每种垃圾收集器可以看作一个GC算法的具体实现。可以根据具体应用的需求选用合适的垃圾收集器(追求吞吐量?追求最短的响应时间?)
+
+- ~~永久代~~
+  - 并不属于堆(Heap).但是GC也会涉及到这个区域
+  - 存放了每个Class的结构信息， 包括常量池、字段描述、方法描述。与垃圾收集要收集的Java对象关系不大
+
+### 内存分配与回收
+
+- 堆上分配
+  大多数情况在eden上分配，偶尔会直接在old上分配细节取决于GC的实现
+- 栈上分配
+  原子类型的局部变量
+
+- GC要做的是将那些dead的对象所占用的内存回收掉
+  - Hotspot认为没有引用的对象是dead的
+  - Hotspot将引用分为四种: Strong、 Soft、Weak、Phantom
+    Strong即默认通过Object o=new Object()这种方式赋值的引用
+    Soft、Weak、 Phantom这 三种则都是继承Reference
+
+- 在Full GC时会对Reference类型的引用进行特殊处理
+  - Soft:内存不够时一定会被GC、长期不用也会被GC
+  - Weak: - 定会被GC， 当被mark为dead, 会在ReferenceQueue中通知
+  -  Phantom: 本来就没引用，当从jvm heap中释放时会通知
+
+垃圾回收器
+
+![垃圾回收器](./images/qqq.png)
+
+### GC回收的时机
+
+- 在分代模型的基础上，GC从时机上分为两种: Scavenge GC和Full GC 
+  - Scavenge GC (Minor GC)
+    触发时机:新对象生成时，Eden空间满了理论上Eden区大多数对象会在ScavengeGC回收，复制算法的执
+    行效率会很高，ScavengeGC时间比较短。
+  - Full GC
+    对整个JVM进行整理，包括Young、Old 和Perm主要的触发时机: 1) Old满了2) Perm满了3) system.gc()效率很低，尽量减少Full GC。
+
+### 垃圾回收器(Garbage Collector)
+
+- 分代模型: GC的宏观愿景;
+- 垃圾回收器: GC的具体实现
+- Hotspot JVM提供多种垃圾回收器，我们需要根据具体应用的需要采用不同的回收器
+- 没有万能的垃圾回收器，每种垃圾回收器都有自己的适用场景
+
+### 垃圾收集器的‘并行”和并发
+
+- 并行(Parallel):指多个收集器的线程同时工作，但是用户线程处于等待状态
+- 并发(Concurrent):指收集器在工作的同时，可以允许用户线程工作。并发不代表解决了GC停顿的问题，在关键的步骤还是要停顿。比如在收集器标记垃圾的时候。但在清除垃圾的时候，用户线程可以和GC线程并发执行。
+
+### Serial收集器
+
+- 最早的收集器，单线程进行GC， New和Old Generation都可以使用，在新生代，采用复制算法;
+- 在老年代，采用Mark-Compact算法因为是单线程GC，没有多线程切换的额外开销，简单实用
+  Hotspot Client模式默认的收集器
+
+![Serial收集器](./images/serial.png)
+
+### ParNew收集器
+
+- ParNew收集器就是Serial的多线程版本，除了使用多个收集线程外，其余行为包括算法、STW、对象分配规则、回收策略等都与Seria收集器一模一样。
+- 对应的这种收集器是虚拟机运行在Server模式的默认新生代收集器，在单CPU的环境中，ParNew收集器并不会比Serial收集器有更好的效果
+
+- Serial收集器在新生代的多线程版本
+- 使用复制算法(因为针对新生代)只有在多CPU的环境下，效率才会比Serial收集器高
+- 可以通过-XX:ParallelGC Threads来控制GC线程数的多少。需要结合具体CPU的个数Server模式下新生代的缺省收集器
+
+![ParNew收集器](./images/parnew.png)
+
+### Parallel Scavenge收集器
+
+- Parallel Scavenge收集器也是一个多线程收集器，也是使用复制算法，但它的对象分配规则与回收策略都与ParNew收集器有所不同，它是以吞吐量最大化(即GC时间占总运行时间最小)为目标的收集器实现，它允许较长时间的STW换取总吞吐量最大化
+
+### CMS ( Concurrent Mark Sweep )收集器
+
+- CMS是一种以最短停顿时间为目标的收集器，使用CMS并不能达到GC效率最高(总体GC时间最小)，但它能尽可能降低GC时服务的停顿时间，CMS收集器使用的是标记一清除算法
+- 特点：
+  - 追求最短停顿时间，非常适合Web应用
+  - 只针对老年区，一般结合ParNew使用
+  - Concurrent, GC线程和用户线程并发工作(尽量并发 )
+  - Mark-Sweep
+  - 只有在多CPU环境下才有意义
+  - 使用-XX:+UseConcMarkSweepGC打开
+
+- CMS收集器的缺点
+  - CMS以牺牲CPU资源的代价来减少用户线程的停顿。当CPU个数少于4的时候，有可能对吞吐量影响非常大
+  - CMS在并发清理的过程中，用户线程还在跑。这时候需要预留一部分空间给用户线程
+  - CMS用Mark-Sweep,会带来碎片问题。碎片过多的时候会容易频繁触发FullGC
+
+![CMS收集器](./images/cms.png)
+
