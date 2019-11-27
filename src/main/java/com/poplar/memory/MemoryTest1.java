@@ -1,4 +1,4 @@
-package com.poplar.memory;
+package main.java.com.poplar.memory;
 
 import java.util.ArrayList;
 import java.util.List;

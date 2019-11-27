@@ -142,6 +142,9 @@ interface MyChild extends Student5 {     //接口属性默认是 public static f
     String b = LocalDateTime.now().toString();
 }
 ```
+- 获取类加载起的方法
+
+![](./images/vb.png)
 
 调用ClassLoader类的loadClass方法加载一个类，并不是对类的主动使用，不会导致类的初始化。
 
