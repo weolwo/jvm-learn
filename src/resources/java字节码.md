@@ -485,7 +485,208 @@ class Orange extends Fruit {
     }
 }
 ```
+### 测试7：
+```java
+package com.poplar.bytecode;
 
+/**
+ * Created BY poplar ON 2019/12/4
+ * 基于栈的解释器的执行过程概念模型
+ */
+public class BasicStackExecutionProcess {
+
+    public int calc() {
+        int a = 100;
+        int b = 200;
+        int c = 300;
+        return (a + b) * c;
+
+    /*
+   public int calc();
+    descriptor: ()I
+    flags: ACC_PUBLIC
+    Code:
+      stack=2, locals=4, args_size=1
+         0: bipush        100  执行地址偏移量为0 将100推送至栈顶
+         2: istore_1          执行地址偏移量为2  将栈顶的100出栈并存放到第一个局部变量Slot中
+         3: sipush        200
+         6: istore_2
+         7: sipush        300
+        10: istore_3
+        11: iload_1          执行地址偏移量为11 将局部变量中第一个Slot中的整型值复制到栈顶
+        12: iload_2
+        13: iadd            将栈顶的两个元素出栈并作整形加法，然后把结果重新入栈
+        14: iload_3
+        15: imul            将栈顶的两个元素出栈并作整形乘法，然后把结果重新入栈
+        16: ireturn         结束方法并将栈顶的值返回给方法调用者
+      LineNumberTable:
+        line 10: 0
+        line 11: 3
+        line 12: 7
+        line 13: 11
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      17     0  this   Lcom/poplar/bytecode/BasicStackExecutionProcess;
+            3      14     1     a   I
+            7      10     2     b   I
+           11       6     3     c   I
+     */
+    }
+
+    public static void main(String[] args) {
+        BasicStackExecutionProcess process = new BasicStackExecutionProcess();
+        int res = process.calc();
+        System.out.println(res);
+    }
+}
+
+```
+### 动态分派：
+
+```java
+package com.poplar.bytecode;
+
+/**
+ * Created BY poplar ON 2019/12/4
+ * 动态分派的演示与证明：
+ * 在动态分派中虚拟机是如何知道要调用那个方法的？
+ */
+public class DynamicDispatch {
+
+    static abstract class Human {
+        public abstract void hello();
+    }
+
+    static class Man extends Human {
+        @Override
+        public void hello() {
+            System.out.println("Hello Man");
+        }
+    }
+
+    static class Woman extends Human {
+        @Override
+        public void hello() {
+            System.out.println("Hello Woman");
+        }
+    }
+
+    public static void main(String[] args) {
+        Human man = new Man();
+        Human woMan = new Woman();
+        man.hello();
+        woMan.hello();
+
+        man = new Woman();
+        man.hello();
+
+    /*public static void main(java.lang.String[]);
+    descriptor: ([Ljava/lang/String;)V
+    flags: ACC_PUBLIC, ACC_STATIC
+    Code:
+      stack=2, locals=3, args_size=1
+         0: new           #2                  // class main/java/com/poplar/bytecode/DynamicDispatch$Man
+         3: dup
+         4: invokespecial #3                  // Method main/java/com/poplar/bytecode/DynamicDispatch$Man."<init>":()V
+         7: astore_1
+         8: new           #4                  // class main/java/com/poplar/bytecode/DynamicDispatch$Woman
+        11: dup
+        12: invokespecial #5                  // Method main/java/com/poplar/bytecode/DynamicDispatch$Woman."<init>":()V
+        15: astore_2
+        16: aload_1 从局部变量加载一个引用 aload1是加载索引为1的引用（man），局部变量有三个（0：args; 1 :man ; 2 :woMan）
+        17: invokevirtual #6                  // Method main/java/com/poplar/bytecode/DynamicDispatch$Human.hello:()V
+        20: aload_2 加载引用woMan
+        21: invokevirtual #6                  // Method main/java/com/poplar/bytecode/DynamicDispatch$Human.hello:()V
+        24: new           #4                  // class main/java/com/poplar/bytecode/DynamicDispatch$Woman
+        27: dup
+        28: invokespecial #5                  // Method main/java/com/poplar/bytecode/DynamicDispatch$Woman."<init>":()V
+        31: astore_1
+        32: aload_1
+        33: invokevirtual #6                  // Method main/java/com/poplar/bytecode/DynamicDispatch$Human.hello:()V
+        36: return
+      LineNumberTable:
+        line 28: 0
+        line 29: 8
+        line 30: 16
+        line 31: 20
+        line 33: 24
+        line 34: 32
+        line 36: 36
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      37     0  args   [Ljava/lang/String;
+            8      29     1   man   Lmain/java/com/poplar/bytecode/DynamicDispatch$Human;
+           16      21     2 woMan   Lmain/java/com/poplar/bytecode/DynamicDispatch$Human;
+    }
+    invokevirtual 运行期执行的时候首先：
+    找到操作数栈顶的第一个元素它所指向对象的实际类型，在这个类型里边，然后查找和常量里边Human的方法描述符和方法名称都一致的
+    方法，如果在这个类型下，常量池里边找到了就会返回实际对象方法的直接引用。
+
+    如果找不到，就会按照继承体系由下往上(Man–>Human–>Object)查找，查找匹配的方式就是
+    上面描述的方式，一直找到位为止。如果一直找不到就会抛出异常。
+
+    比较方法重载（overload）和方法重写（overwrite），我们可以得出这样的结论：
+    方法重载是静态的，是编译器行为；方法重写是动态的，是运行期行为。
+    ————————————————
+    版权声明：本文为CSDN博主「魔鬼_」的原创文章，遵循 CC 4.0 BY-SA 版权协议，转载请附上原文出处链接及本声明。
+    原文链接：https://blog.csdn.net/wzq6578702/article/details/82712042
+       */
+    }
+}
+
+```
+
+### 静态分派：
+
+```java
+package com.poplar.bytecode;
+
+/**
+ * Created BY poplar ON 2019/12/4
+ * 静态分派的演示与证明：
+ */
+public class StaticDispatch {
+
+    static abstract class Human {
+
+    }
+
+    static class Man extends Human {
+
+    }
+
+    static class Woman extends Human {
+
+    }
+
+    public void hello(Human param) {
+        System.out.println("Hello Human");
+    }
+
+    public void hello(Man param) {
+        System.out.println("Hello Man");
+    }
+
+    public void hello(Woman param) {
+        System.out.println("Hello Woman");
+    }
+
+    public static void main(String[] args) {
+        StaticDispatch dispatch = new StaticDispatch();
+        /*Human man = new Man();
+        Human woMan = new Woman();
+        dispatch.hello(man);
+        dispatch.hello(woMan);*/
+
+        Human human = new Woman();
+        human = new Man();
+        dispatch.hello((Woman) human);
+        dispatch.hello((Man) human);
+        //java.lang.ClassCastException: main.java.com.poplar.bytecode.WoMan cannot be cast to main.java.com.poplar.bytecode.Man
+    }
+}
+
+```
 - 现代JVM在执行Java代码的时候,通常都会将解释执行与编译执行二者结合起来进行.
   - 所谓解释执行，就是通过解释器来读取字节码,遇到相应的指令就去执行该指令
   - 所谓编译执行,就是通过即时编译器(Just in Time, JIT)将字节码转换为本地机器码来执行;现代JoM会根据代码热点来生成目应的本地机器码
