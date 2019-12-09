@@ -183,3 +183,123 @@
 - **线程状态转换**
 
 ![用户线程](./images/thread_status.png)
+
+### 线程安全与锁优化 
+
+- 为了更加深入地理解线程安全，在这里我们可以不把线程安全当做一个非真即假的二元 排他选项来看待，按照线程安全的“安全程度”由强至弱来排序，我们[1]可以将Java语言中各种 操作共享的数据分为以下5类：不可变、绝对线程安全、相对线程安全、线程兼容和线程对 立
+
+- **不可变 （Immutable）**的对象一定是线程安全的，无论是对象的方法实现还是方法的调用者，都不需 要再采取任何的线程安全保障措施
+
+- 在Java API中标注自己是线程安全的类，大多数 都不是**绝对的线程安全**
+
+  ```java
+  /**
+   * Created BY poplar ON 2019/12/8
+   * 对vector线程安全的测试,通过对源码debug测试发现会出现 ArrayIndexOutOfBoundsException
+   * 尽管这里使用到的Vector的get（）、remove（）和size（）方法都是同步的， 但是在多线程的环境中，
+   * 如果不在方法调用端做额外的同步措施的话，使用这段代码仍然是 不安全的，因为如果另一个线程恰好在错误的时间里删除了一个元素，
+   * 导致序号i已经不再 可用的话，再用i访问数组就会抛出一个ArrayIndexOutOfBoundsException
+   */
+  public class VectorTest {
+  
+      private static Vector<Integer> vector = new Vector<>();
+  
+      public static void main(String[] args) {
+          while (true) {
+              for (int i = 0; i < 10; i++) {
+                  vector.add(i);
+              }
+  
+              new Thread(() -> {
+                  for (int i = 0; i < vector.size(); i++) {
+                      vector.remove(i);
+                  }
+              }).start();
+  
+              new Thread(() -> {
+                  for (int i = 0; i < vector.size(); i++) {
+                      System.out.println(vector.get(i));
+                  }
+              }).start();
+  
+              while (Thread.activeCount() > 90) ;
+          }
+  
+      }
+  }
+  ```
+
+  **代码改进**：
+
+  ```java
+  /**
+   * Created BY poplar ON 2019/12/8
+   * 改进后debug源码未发现异常情况
+   */
+  public class VectorTestImprove {
+      private static Vector<Integer> vector = new Vector<>();
+  
+      public static void main(String[] args) {
+          while (true) {
+              for (int i = 0; i < 10; i++) {
+                  vector.add(i);
+              }
+  
+              new Thread(() -> {
+                  synchronized (vector) {
+                      for (int i = 0; i < vector.size(); i++) {
+                          vector.remove(i);
+                      }
+                  }
+              }).start();
+  
+              new Thread(() -> {
+                  synchronized (vector) {
+                      for (int i = 0; i < vector.size(); i++) {
+                          System.out.println(vector.get(i));
+                      }
+                  }
+              }).start();
+  
+              while (Thread.activeCount() > 90) ;
+          }
+  
+      }
+  }
+  
+  ```
+
+  
+
+- **相对线程安全** 
+- 相对的线程安全就是我们通常意义上所讲的线程安全，在Java语言中，大部分的线程安全类都属于这种类型，例如Vector、HashTable、 Collections的synchronizedCollection（）方法包装的集合等
+
+- **线程兼容**
+
+- 线程兼容是指对象本身并不是线程安全的，但是可以通过在调用端正确地使用同步手段 来保证对象在并发环境中可以安全地使用，我们平常说一个类不是线程安全的，绝大多数时 候指的是这一种情况。Java API中大部分的类都是属于线程兼容的，如与前面的Vector和 HashTable相对应的集合类ArrayList和HashMap等。 
+
+- **线程对立** 
+- 线程对立是指无论调用端是否采取了同步措施，都无法在多线程环境中并发使用的代 码。
+
+### 线程安全的实现方法 
+
+- **互斥同步**（Mutual Exclusion＆Synchronization）是常见的一种并发正确性保障手段。同步 是指在多个线程并发访问共享数据时，保证共享数据在同一个时刻只被一个（或者是一些， 使用信号量的时候）线程使用。
+- 从处理问题的方式上说，互斥同步属于一种悲观的 并发策略，总是认为只要不去做正确的同步措施（例如加锁），那就肯定会出现问题，无论 共享数据是否真的会出现竞争，它都要进行加锁
+
+- 在Java中，最基本的互斥同步手段就是synchronized关键字，我们还可以使用java.util.concurrent（下文称J.U.C）包中的重入锁 （ReentrantLock）来实现同步
+
+- **非阻塞同步** 
+
+- 随着硬件指令集的发展，我们有了另外一个选择：基于冲突检测的 乐观并发策略，通俗地说，就是先进行操作，如果没有其他线程争用共享数据，那操作就成 功了；如果共享数据有争用，产生了冲突，那就再采取其他的补偿措施（最常见的补偿措施 就是不断地重试，直到成功为止），这种乐观的并发策略的许多实现都不需要把线程挂起， 因此这种同步操作称为非阻塞同步（Non-Blocking Synchronization）。 
+
+### 锁优化
+
+- **自旋锁与自适应自旋** 
+
+- 互斥同步对性能最大的影响是阻塞的实现，挂起 线程和恢复线程的操作都需要转入内核态中完成，这些操作给系统的并发性能带来了很大的 压力。同时，虚拟机的开发团队也注意到在许多应用上，共享数据的锁定状态只会持续很短 的一段时间，为了这段时间去挂起和恢复线程并不值得。如果物理机器有一个以上的处理 器，能让两个或以上的线程同时并行执行，我们就可以让后面请求锁的那个线程“稍等一 下”，但不放弃处理器的执行时间，看看持有锁的线程是否很快就会释放锁。为了让线程等 待，我们只需让线程执行一个忙循环（自旋），这项技术就是所谓的自旋锁，
+- 自旋等待本身虽然避免了线程切换的开销，但它是要占用处理器时间的， 因此，如果锁被占用的时间很短，自旋等待的效果就会非常好，反之，如果锁被占用的时间 很长，那么自旋的线程只会白白消耗处理器资源，而不会做任何有用的工作，反而会带来性 能上的浪费。因此，自旋等待的时间必须要有一定的限度，如果自旋超过了限定的次数仍然 没有成功获得锁，就应当使用传统的方式去挂起线程了
+
+- 自适应意味着自旋的时间不再固定了，而是由前 一次在同一个锁上的自旋时间及锁的拥有者的状态来决定
+
+### 关于锁推荐相关参考链接：<https://www.cnblogs.com/jyroy/p/11365935.html>
+
