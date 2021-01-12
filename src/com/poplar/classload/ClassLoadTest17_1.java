@@ -5,8 +5,8 @@ package com.poplar.classload;
  */
 public class ClassLoadTest17_1 {
     public static void main(String[] args) throws Exception {
-        CustomClassLoader2 loader = new CustomClassLoader2("loader");
-        loader.setPath("C:\\Users\\poplar\\Desktop\\");
+        CustomClassLoader2 loader = new CustomClassLoader2();
+
         Class<?> clazz = loader.loadClass("com.poplar.classload.Simple");
         System.out.println(clazz.hashCode());
         //如果注释掉该行，就并不会实例化MySample对象，不会加载MyCat（可能预先加载）

@@ -7,8 +7,8 @@ import java.lang.reflect.Method;
  */
 public class ClassLoadTest20 {
     public static void main(String[] args) throws Exception {
-        CustomClassLoader2 loader1 = new CustomClassLoader2("load1");
-        CustomClassLoader2 loader2 = new CustomClassLoader2("load2");
+        CustomClassLoader2 loader1 = new CustomClassLoader2();
+        CustomClassLoader2 loader2 = new CustomClassLoader2();
         Class<?> clazz1 = loader1.loadClass("com.poplar.classload.Person");
         Class<?> clazz2 = loader2.loadClass("com.poplar.classload.Person");
 

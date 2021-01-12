@@ -13,21 +13,20 @@ import java.lang.reflect.Method;
 public class ClassLoadTest21 {
 
     public static void main(String[] args) throws Exception {
-        CustomClassLoader2 loader1 = new CustomClassLoader2("load1");
-        loader1.setPath("C:\\Users\\poplar\\Desktop\\");
-        CustomClassLoader2 loader2 = new CustomClassLoader2("load2");
-        loader2.setPath("C:\\Users\\poplar\\Desktop\\");
-        Class<?> clazz1 = loader1.loadClass("com.poplar.classload.MyPerson");
-        Class<?> clazz2 = loader2.loadClass("com.poplar.classload.MyPerson");
+        CustomClassLoader2 loader1 = new CustomClassLoader2();
+        CustomClassLoader2 loader2 = new CustomClassLoader2();
+        Class<?> clazz1 = loader1.loadClass("com.poplar.bean.User");
+        Class<?> clazz2 = loader2.loadClass("com.poplar.bean.ClassLoaderTest");
         //由于clazz1和clazz2分别有不同的类加载器所加载，所以他们处于不同的名称空间里
         System.out.println(clazz1 == clazz2);//false
 
         Object object1 = clazz1.newInstance();
         Object object2 = clazz2.newInstance();
-
-        Method method = clazz1.getMethod("setMyPerson", Object.class);
+        System.out.println(object1.getClass().getClassLoader());
+        System.out.println(object2.getClass().getClassLoader());
+        //Method method = clazz1.getMethod("setMyPerson", Object.class);
         //此处报错，loader1和loader2所处不用的命名空间
-        method.invoke(object1, object2);
+        //method.invoke(object1, object2);
 
        /*
        输出结果：
