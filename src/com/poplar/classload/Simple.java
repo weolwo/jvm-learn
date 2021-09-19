@@ -8,4 +8,8 @@ public class Simple {
         System.out.println("Simple by Load " + Simple.class.getClassLoader());
         new MyCat();
     }
+
+    public void out(){
+        System.out.println("out..");
+    }
 }
